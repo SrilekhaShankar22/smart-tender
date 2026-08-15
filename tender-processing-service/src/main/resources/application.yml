@@ -1,0 +1,47 @@
+server:
+  port: 8082
+spring:
+  application:
+    name: tender-processing-service
+  datasource:
+    url: jdbc:mysql://localhost:3307/smart_tender_processing?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: processing-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.smarttender.common.event
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.smarttender.common.event.TenderRawEvent
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URI:http://localhost:9200}
+    username: ${ELASTICSEARCH_USERNAME:}
+    password: ${ELASTICSEARCH_PASSWORD:}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+logging:
+  level:
+    com.smarttender: DEBUG

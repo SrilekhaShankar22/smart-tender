@@ -1,0 +1,247 @@
+version: '3.9'
+
+# Smart Tender — Full Local Development Stack
+# START:   docker-compose up -d
+# STOP:    docker-compose down
+# WIPE:    docker-compose down -v
+
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: st_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: tender_user
+      MYSQL_PASSWORD: tender_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - st_net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: st_zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - st_net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: st_kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - st_net
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: st_kafka_ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    networks:
+      - st_net
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: st_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - st_net
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: st_elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - st_net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.0
+    container_name: st_kibana
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    networks:
+      - st_net
+
+  auth-service:
+    build: ./auth-service
+    container_name: st_auth
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smart_tender_auth?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: tender_user
+      DB_PASSWORD: tender_pass
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: SmartTenderSecretKeyMustBe256BitsLongForHS256Algorithm!
+    networks:
+      - st_net
+
+  tender-fetch-service:
+    build: ./tender-fetch-service
+    container_name: st_fetch
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smart_tender_fetch?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: tender_user
+      DB_PASSWORD: tender_pass
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    networks:
+      - st_net
+
+  tender-processing-service:
+    build: ./tender-processing-service
+    container_name: st_processing
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      elasticsearch:
+        condition: service_started
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smart_tender_processing?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: tender_user
+      DB_PASSWORD: tender_pass
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      ELASTICSEARCH_URI: http://elasticsearch:9200
+    networks:
+      - st_net
+
+  tender-search-service:
+    build: ./tender-search-service
+    container_name: st_search
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+      - redis
+    ports:
+      - "8083:8083"
+    environment:
+      ELASTICSEARCH_URI: http://elasticsearch:9200
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    networks:
+      - st_net
+
+  user-profile-service:
+    build: ./user-profile-service
+    container_name: st_profile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smart_tender_profiles?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: tender_user
+      DB_PASSWORD: tender_pass
+      JWT_SECRET: SmartTenderSecretKeyMustBe256BitsLongForHS256Algorithm!
+    networks:
+      - st_net
+
+  notification-service:
+    build: ./notification-service
+    container_name: st_notification
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smart_tender_notifications?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: tender_user
+      DB_PASSWORD: tender_pass
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    networks:
+      - st_net
+
+  angular-frontend:
+    build: ./angular-frontend
+    container_name: st_frontend
+    restart: unless-stopped
+    ports:
+      - "4200:80"
+    networks:
+      - st_net
+
+volumes:
+  mysql_data:
+  kafka_data:
+  redis_data:
+  es_data:
+
+networks:
+  st_net:
+    driver: bridge

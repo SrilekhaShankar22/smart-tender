@@ -1,0 +1,31 @@
+server:
+  port: 8086
+spring:
+  application:
+    name: user-profile-service
+  datasource:
+    url: jdbc:mysql://localhost:3307/smart_tender_profiles?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+app:
+  jwt:
+    secret: ${JWT_SECRET:SmartTenderSecretKeyMustBe256BitsLongForHS256Algorithm!}
+    expiration-ms: 900000

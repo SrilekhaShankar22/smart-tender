@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tender-fetch-service
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.services.fetch.replicas }}
+  selector:
+    matchLabels:
+      app: tender-fetch-service
+  template:
+    metadata:
+      labels:
+        app: tender-fetch-service
+    spec:
+      containers:
+        - name: tender-fetch-service
+          image: "{{ .Values.global.dockerHubUsername }}/st-fetch-service:{{ .Values.global.imageTag }}"
+          ports:
+            - containerPort: {{ .Values.services.fetch.port }}
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.services.fetch.port }}
+            initialDelaySeconds: 90
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tender-fetch-service
+  namespace: {{ .Values.global.namespace }}
+spec:
+  selector:
+    app: tender-fetch-service
+  ports:
+    - port: {{ .Values.services.fetch.port }}
+      targetPort: {{ .Values.services.fetch.port }}

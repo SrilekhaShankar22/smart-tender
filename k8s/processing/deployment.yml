@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: processing-service
+  namespace: smart-tender
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: processing-service
+  template:
+    metadata:
+      labels:
+        app: processing-service
+    spec:
+      containers:
+        - name: processing-service
+          image: DOCKERHUB_USER/st-processing-service:latest
+          ports:
+            - containerPort: 8082
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: password
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: ELASTICSEARCH_URI
+              value: http://elasticsearch:9200
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 250m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: processing-service
+  namespace: smart-tender
+spec:
+  selector:
+    app: processing-service
+  ports:
+    - port: 8080
+      targetPort: 8080

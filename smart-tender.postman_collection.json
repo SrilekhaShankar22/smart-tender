@@ -1,0 +1,103 @@
+{
+  "info": {
+    "name": "Smart Tender Tracker",
+    "description": "Complete API collection for Smart Tender Tracker microservices",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "AUTH_BASE", "value": "http://localhost:8084/api/v1"},
+    {"key": "FETCH_BASE", "value": "http://localhost:8081/api/v1"},
+    {"key": "SEARCH_BASE", "value": "http://localhost:8083/api/v1"},
+    {"key": "PROFILE_BASE", "value": "http://localhost:8086/api/v1"},
+    {"key": "ACCESS_TOKEN", "value": ""},
+    {"key": "USER_ID", "value": "1"}
+  ],
+  "item": [
+    {
+      "name": "Auth Service",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST", "url": "{{AUTH_BASE}}/auth/register",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"firstName\":\"Test\",\"lastName\":\"User\",\"email\":\"test@example.com\",\"password\":\"password123\"}"}
+          }
+        },
+        {
+          "name": "Login",
+          "event": [{"listen": "test", "script": {"exec": ["var r = pm.response.json(); if(r.success) pm.collectionVariables.set('ACCESS_TOKEN', r.data.accessToken);"]}}],
+          "request": {
+            "method": "POST", "url": "{{AUTH_BASE}}/auth/login",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"email\":\"admin@smarttender.com\",\"password\":\"Admin@123\"}"}
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST", "url": "{{AUTH_BASE}}/auth/refresh",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"refreshToken\":\"YOUR_REFRESH_TOKEN\"}"}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Fetch Service",
+      "item": [
+        {
+          "name": "Trigger Manual Fetch",
+          "request": {
+            "method": "POST", "url": "{{FETCH_BASE}}/fetch/trigger",
+            "header": [{"key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}"}]
+          }
+        },
+        {"name": "Get Fetch Status", "request": {"method": "GET", "url": "{{FETCH_BASE}}/fetch/status", "header": [{"key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}"}]}},
+        {"name": "Get Fetch Stats", "request": {"method": "GET", "url": "{{FETCH_BASE}}/fetch/stats"}}
+      ]
+    },
+    {
+      "name": "Search Service",
+      "item": [
+        {
+          "name": "Search Tenders",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{SEARCH_BASE}}/tenders/search?keyword=civil&tenderStatus=ACTIVE&page=0&size=20&sortBy=relevanceScore", "host": ["{{SEARCH_BASE}}"], "path": ["tenders","search"], "query": [{"key": "keyword", "value": "civil"}, {"key": "tenderStatus", "value": "ACTIVE"}, {"key": "page", "value": "0"}, {"key": "size", "value": "20"}, {"key": "sortBy", "value": "relevanceScore"}]},
+            "header": [{"key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}"}]
+          }
+        },
+        {
+          "name": "Search by Organisation",
+          "request": {"method": "GET", "url": "{{SEARCH_BASE}}/tenders/search?organisation=CPWD&page=0&size=10", "header": [{"key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}"}]}
+        },
+        {
+          "name": "Get Tender by ID",
+          "request": {"method": "GET", "url": "{{SEARCH_BASE}}/tenders/TENDER_ID_HERE", "header": [{"key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}"}]}
+        }
+      ]
+    },
+    {
+      "name": "Profile Service",
+      "item": [
+        {
+          "name": "Get Saved Searches",
+          "request": {"method": "GET", "url": "{{PROFILE_BASE}}/profiles/{{USER_ID}}/saved-searches", "header": [{"key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}"}]}
+        },
+        {
+          "name": "Create Saved Search",
+          "request": {
+            "method": "POST", "url": "{{PROFILE_BASE}}/profiles/{{USER_ID}}/saved-searches",
+            "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}"}],
+            "body": {"mode": "raw", "raw": "{\"name\":\"Civil Works CPWD\",\"keywords\":\"civil,construction\",\"organisation\":\"CPWD\",\"sourceType\":\"CENTRAL\",\"alertEnabled\":true,\"alertFrequency\":\"DAILY\"}"}
+          }
+        },
+        {
+          "name": "Delete Saved Search",
+          "request": {"method": "DELETE", "url": "{{PROFILE_BASE}}/profiles/{{USER_ID}}/saved-searches/1", "header": [{"key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}"}]}
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+package com.smarttender.notification.repository;
+import com.smarttender.notification.entity.NotificationLog;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+@Repository
+public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
+    List<NotificationLog> findByUserIdOrderByCreatedAtDesc(Long userId);
+    List<NotificationLog> findByStatusAndRetryCountLessThan(String status, int maxRetry);
+}

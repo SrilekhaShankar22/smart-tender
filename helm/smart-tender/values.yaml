@@ -1,0 +1,46 @@
+global:
+  imageTag: latest
+  dockerHubUsername: yourdockerhubuser
+  namespace: smart-tender
+
+mysql:
+  enabled: true
+  image: mysql:8.0
+  rootPassword: REPLACE_ME
+  userPassword: REPLACE_ME
+
+kafka:
+  enabled: true
+  replicas: 1
+
+redis:
+  enabled: true
+  image: redis:7.2-alpine
+
+elasticsearch:
+  enabled: true
+  image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+
+services:
+  auth:
+    replicas: 2
+    port: 8084
+    jwtSecret: SmartTenderSecretKeyMustBe256BitsLongForHS256Algorithm!
+  fetch:
+    replicas: 1
+    port: 8081
+  processing:
+    replicas: 1
+    port: 8082
+  search:
+    replicas: 2
+    port: 8083
+  profile:
+    replicas: 1
+    port: 8086
+  notification:
+    replicas: 1
+    port: 8085
+  frontend:
+    replicas: 2
+    port: 80
