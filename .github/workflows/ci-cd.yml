@@ -1,190 +1,180 @@
-name: Smart Tender CI/CD
+  name: Smart Tender CI/CD
 
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
+  on:
+    push:
+      branches: [main, develop]
+    pull_request:
+      branches: [main]
 
-env:
-  IMAGE_TAG: ${{ github.sha }}
+  env:
+    IMAGE_TAG: ${{ github.sha }}
 
-jobs:
+  jobs:
 
-  # ── Build & Test ────────────────────────────────────────────────────────────
-  build-test:
-    name: Build & Test Backend
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    # ── Build & Test ────────────────────────────────────────────────────────────
+    build-test:
+      name: Build & Test Backend
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
+        - name: Set up JDK 21
+          uses: actions/setup-java@v4
+          with:
+            java-version: '21'
+            distribution: 'temurin'
+            cache: 'maven'
 
-      - name: Build all modules (skip tests first)
-        run: mvn clean install -DskipTests --no-transfer-progress
+        - name: Build all modules
+          run: mvn clean install -DskipTests --no-transfer-progress
 
-      - name: Run tests
-        run: mvn test --no-transfer-progress
+        - name: Run tests
+          run: mvn test --no-transfer-progress
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: '**/target/surefire-reports/*.xml'
+        - name: Upload test results
+          uses: actions/upload-artifact@v4
+          if: always()
+          with:
+            name: test-results
+            path: '**/target/surefire-reports/*.xml'
 
-  # ── Frontend Build ──────────────────────────────────────────────────────────
-  build-frontend:
-    name: Build Angular Frontend
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    # ── Frontend Build ──────────────────────────────────────────────────────────
+    build-frontend:
+      name: Build Angular Frontend
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
 
-      - name: Set up Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: angular-frontend/package-lock.json
+        - name: Set up Node 20
+          uses: actions/setup-node@v4
+          with:
+            node-version: '20'
+            cache: 'npm'
+            cache-dependency-path: angular-frontend/package-lock.json
 
-      - name: Install dependencies
-        run: cd angular-frontend && npm ci
+        - name: Install dependencies
+          run: cd angular-frontend && npm ci
 
-      - name: Build production
-        run: cd angular-frontend && npm run build:prod
+        - name: Build production
+          run: cd angular-frontend && npm run build:prod
 
-      - name: Upload frontend artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: angular-frontend/dist/
+        - name: Upload frontend artifact
+          uses: actions/upload-artifact@v4
+          with:
+            name: frontend-dist
+            path: angular-frontend/dist/
 
-  # ── Docker Build & Push ─────────────────────────────────────────────────────
-  docker-build-push:
-    name: Docker Build & Push
-    runs-on: ubuntu-latest
-    needs: [build-test, build-frontend]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
+    # ── Docker Build & Push ─────────────────────────────────────────────────────
+    docker-build-push:
+      name: Docker Build & Push
+      runs-on: ubuntu-latest
+      needs: [build-test, build-frontend]
+      if: github.ref == 'refs/heads/main'
+      steps:
+        - uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
+        - name: Set up JDK 21
+          uses: actions/setup-java@v4
+          with:
+            java-version: '21'
+            distribution: 'temurin'
+            cache: 'maven'
 
-      - name: Build all JARs
-        run: mvn clean package -DskipTests --no-transfer-progress
+        - name: Build all JARs
+          run: mvn clean package -DskipTests --no-transfer-progress
 
-      # ── Login to Docker Hub ──────────────────────────────────────────────
-      # secrets.DOCKER_HUB_USERNAME and secrets.DOCKER_HUB_TOKEN
-      # must be added in: GitHub repo → Settings → Secrets → Actions
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+        - name: Login to Docker Hub
+          uses: docker/login-action@v3
+          with:
+            username: ${{ secrets.DOCKER_HUB_USERNAME }}
+            password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      # ── Push each service image ──────────────────────────────────────────
-      - name: Build and push auth-service
-        uses: docker/build-push-action@v5
-        with:
-          context: auth-service
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-auth-service:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-auth-service:latest
+        - name: Build and push auth-service
+          uses: docker/build-push-action@v5
+          with:
+            context: auth-service
+            push: true
+            tags: |
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-auth-service:${{ env.IMAGE_TAG }}
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-auth-service:latest
 
-      - name: Build and push tender-fetch-service
-        uses: docker/build-push-action@v5
-        with:
-          context: tender-fetch-service
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-fetch-service:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-fetch-service:latest
+        - name: Build and push tender-fetch-service
+          uses: docker/build-push-action@v5
+          with:
+            context: tender-fetch-service
+            push: true
+            tags: |
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-fetch-service:${{ env.IMAGE_TAG }}
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-fetch-service:latest
 
-      - name: Build and push tender-processing-service
-        uses: docker/build-push-action@v5
-        with:
-          context: tender-processing-service
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-processing-service:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-processing-service:latest
+        - name: Build and push tender-processing-service
+          uses: docker/build-push-action@v5
+          with:
+            context: tender-processing-service
+            push: true
+            tags: |
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-processing-service:${{ env.IMAGE_TAG }}
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-processing-service:latest
 
-      - name: Build and push tender-search-service
-        uses: docker/build-push-action@v5
-        with:
-          context: tender-search-service
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-search-service:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-search-service:latest
+        - name: Build and push tender-search-service
+          uses: docker/build-push-action@v5
+          with:
+            context: tender-search-service
+            push: true
+            tags: |
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-search-service:${{ env.IMAGE_TAG }}
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-search-service:latest
 
-      - name: Build and push user-profile-service
-        uses: docker/build-push-action@v5
-        with:
-          context: user-profile-service
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-profile-service:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-profile-service:latest
+        - name: Build and push user-profile-service
+          uses: docker/build-push-action@v5
+          with:
+            context: user-profile-service
+            push: true
+            tags: |
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-profile-service:${{ env.IMAGE_TAG }}
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-profile-service:latest
 
-      - name: Build and push notification-service
-        uses: docker/build-push-action@v5
-        with:
-          context: notification-service
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-notification-service:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-notification-service:latest
+        - name: Build and push notification-service
+          uses: docker/build-push-action@v5
+          with:
+            context: notification-service
+            push: true
+            tags: |
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-notification-service:${{ env.IMAGE_TAG }}
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-notification-service:latest
 
-      - name: Build and push angular-frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: angular-frontend
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-frontend:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/st-frontend:latest
+        - name: Build and push angular-frontend
+          uses: docker/build-push-action@v5
+          with:
+            context: angular-frontend
+            push: true
+            tags: |
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-frontend:${{ env.IMAGE_TAG }}
+              ${{ secrets.DOCKER_HUB_USERNAME }}/st-frontend:latest
 
-  # ── Deploy to Kubernetes ────────────────────────────────────────────────────
-  # This job only runs if you have a Kubernetes cluster set up.
-  # If you don't have K8s yet — comment out this entire job for now.
-  # Required secret: KUBECONFIG (your cluster kubeconfig file contents)
-  deploy:
-    name: Deploy to Kubernetes
-    runs-on: ubuntu-latest
-    needs: docker-build-push
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up kubectl
-        uses: azure/k8s-set-context@v3
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG }}
-
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: '3.14.0'
-
-      - name: Deploy with Helm
-        run: |
-          helm upgrade --install smart-tender ./helm/smart-tender \
-            --set global.imageTag=${{ env.IMAGE_TAG }} \
-            --set global.dockerHubUsername=${{ secrets.DOCKER_HUB_USERNAME }} \
-            --namespace smart-tender \
-            --create-namespace \
-            --wait \
-            --timeout 10m
+    # ── Deploy to Kubernetes ────────────────────────────────────────────────────
+    # DISABLED — Enable this when you have a Kubernetes cluster ready
+    # Required secret to add: KUBECONFIG (your cluster kubeconfig file contents)
+    #
+    # deploy:
+    #   name: Deploy to Kubernetes
+    #   runs-on: ubuntu-latest
+    #   needs: docker-build-push
+    #   if: github.ref == 'refs/heads/main'
+    #   steps:
+    #     - uses: actions/checkout@v4
+    #     - name: Set up kubectl
+    #       uses: azure/k8s-set-context@v3
+    #       with:
+    #         method: kubeconfig
+    #         kubeconfig: ${{ secrets.KUBECONFIG }}
+    #     - name: Install Helm
+    #       uses: azure/setup-helm@v3
+    #       with:
+    #         version: '3.14.0'
+    #     - name: Deploy with Helm
+    #       run: |
+    #         helm upgrade --install smart-tender ./helm/smart-tender \
+    #           --set global.imageTag=${{ env.IMAGE_TAG }} \
+    #           --set global.dockerHubUsername=${{ secrets.DOCKER_HUB_USERNAME }} \
+    #           --namespace smart-tender --create-namespace --wait --timeout 10m
